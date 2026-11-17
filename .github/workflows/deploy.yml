@@ -7,13 +7,50 @@ concurrency:
   group: haru-modal-deploy
   cancel-in-progress: false
 jobs:
-  deploy:
+  prepare:
     if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      receipt: ${{ steps.authorize.outputs.receipt }}
+    env:
+      HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install modal==1.6.4
+      - name: Prepare encrypted one-hour authorization
+        id: authorize
+        run: |
+          python - <<'PYAUTH'
+          import asyncio, json, os, subprocess
+          from modal.client import _Client
+          from modal.config import config
+          from modal.token_flow import _TokenFlow
+          async def main():
+              assert len(os.environ["HARU_PASSWORD"]) >= 32
+              async with _Client.anonymous(config.get("server_url")) as client:
+                  flow = _TokenFlow(client)
+                  async with flow.start(expires_in_seconds=3600) as (_, url, code):
+                      data = json.dumps({"flow_id": flow.token_flow_id,
+                          "wait_secret": flow.wait_secret, "url": url, "code": code}).encode()
+                      cipher = subprocess.run(["openssl", "enc", "-aes-256-cbc", "-pbkdf2",
+                          "-iter", "100000", "-salt", "-a", "-A", "-pass", "env:HARU_PASSWORD"],
+                          input=data, capture_output=True, check=True).stdout.decode()
+                      with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+                          out.write("receipt=" + cipher + "\n")
+                      print("::notice title=Encrypted Modal authorization::" + cipher)
+          asyncio.run(main())
+          PYAUTH
+  deploy:
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       MODAL_ENVIRONMENT: main
       HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
+      MODAL_AUTH_RECEIPT: ${{ needs.prepare.outputs.receipt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,54 +63,37 @@ jobs:
           test -n "$HARU_PASSWORD"
       - name: Install deployment client on cloud runner only
         run: python -m pip install modal==1.6.4
-      - name: Start temporary Modal authorization
-        env:
-          NO_COLOR: '1'
-          COLUMNS: '300'
-          BROWSER: 'false'
-        shell: bash
+      - name: Wait for authorized one-hour yuki14 connection
         run: |
-          nohup modal token new --expires-in 1h > "$RUNNER_TEMP/modal-auth.log" 2>&1 < /dev/null &
-          echo "MODAL_AUTH_PID=$!" >> "$GITHUB_ENV"
-          for i in $(seq 1 60); do
-            if grep -q 'https://modal.com/' "$RUNNER_TEMP/modal-auth.log"; then
-              python - <<'PYAUTH'
-          import os, re
-          text = open(os.environ["RUNNER_TEMP"] + "/modal-auth.log").read()
-          text = re.sub(r"\x1b\[[0-9;]*m", "", text)
-          for line in text.splitlines():
-              if "https://modal.com/" in line or "Enter this code:" in line:
-                  print("::notice title=Modal temporary authorization::" + line.strip())
+          python - <<'PYAUTH'
+          import asyncio, json, os, subprocess
+          from modal.client import _Client
+          from modal.config import config
+          from modal.token_flow import _TokenFlow
+          data = subprocess.run(["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2",
+              "-iter", "100000", "-a", "-A", "-pass", "env:HARU_PASSWORD"],
+              input=os.environ["MODAL_AUTH_RECEIPT"].encode(), capture_output=True, check=True).stdout
+          receipt = json.loads(data)
+          async def main():
+              async with _Client.anonymous(config.get("server_url")) as client:
+                  flow = _TokenFlow(client)
+                  flow.token_flow_id = receipt["flow_id"]
+                  flow.wait_secret = receipt["wait_secret"]
+                  for _ in range(18):
+                      result = await flow.finish()
+                      if result is None:
+                          continue
+                      if result.workspace_username != "yuki14":
+                          raise RuntimeError("Unexpected Modal workspace; refusing deployment")
+                      print("::add-mask::" + result.token_id)
+                      print("::add-mask::" + result.token_secret)
+                      with open(os.environ["GITHUB_ENV"], "a") as out:
+                          out.write("MODAL_TOKEN_ID=" + result.token_id + "\n")
+                          out.write("MODAL_TOKEN_SECRET=" + result.token_secret + "\n")
+                      print("Authorized one-hour yuki14 connection is ready.")
+                      return
+                  raise TimeoutError("No authorized Modal connection received")
+          asyncio.run(main())
           PYAUTH
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "No authorization URL received" >&2
-          exit 1
-      - name: Wait for authorized yuki14 connection
-        shell: bash
-        run: |
-          for i in $(seq 1 240); do
-            if test -f "$HOME/.modal.toml"; then
-              if grep -q 'yuki14 workspace' "$RUNNER_TEMP/modal-auth.log"; then
-                echo "Authorized temporary yuki14 connection is ready."
-                exit 0
-              fi
-              echo "Unexpected Modal workspace; refusing deployment" >&2
-              exit 1
-            fi
-            if ! kill -0 "$MODAL_AUTH_PID" 2>/dev/null; then
-              echo "Modal authorization process exited before credential setup" >&2
-              exit 1
-            fi
-            sleep 2
-          done
-          echo "Modal authorization timed out" >&2
-          exit 1
       - name: Deploy Japanese Haru
         run: modal deploy modal_app.py
-      - name: Remove runner credentials
-        if: always()
-        shell: bash
-        run: rm -f "$HOME/.modal.toml"
