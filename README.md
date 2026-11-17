@@ -1,54 +1,52 @@
-# Haru Japanese conversation on Modal
+# Japanese Haru on Modal
 
-This dedicated evaluation deployment reuses the official Haru web client and server.
-No model weights or Python dependencies are installed on the Mac.
-Source is maintained here; cloud runners build the image and Modal stores/executes the model.
+A standalone evaluation deployment that reuses the official Haru browser client/server.
+The model and runtime dependencies live in Modal. Deployment tooling runs on a cloud
+runner, so the client computer does not download model weights or install this runtime.
 
-## Current authorization and cost boundary
-- User requested Modal free credits only, no large local storage.
-- Workspace: yuki14, environment main, app haru-ja-free.
-- Dashboard verified on 2026-11-17: $1 available credits and $1 usage limit; no payment method.
-  The advertised $30/month requires a payment method, and has NOT been unlocked.
-- Do not add a payment method, increase budgets, or start a paid subscription.
-- Initial deployment uses one L4, 0 minimum containers, maximum 1, 10-second idle scale-down,
-  maximum 180 seconds per Haru conversation. These controls reduce use; the provider's
-  workspace usage limit is the actual spending boundary.
-- A browser tab/request can wake the GPU again and consume remaining free credits.
-- The initial deployment workflow must NOT run in a private repository unless included
-  Actions availability is confirmed. Public standard runners avoid Actions compute charges.
-- Temporary Modal token authorization is required before the cloud deploy can proceed.
-  Token lifetime is 1 hour. No Modal token is stored in repository contents or GitHub Secrets.
-  The dedicated endpoint password is stored as a private Actions secret.
+## Before deployment
+Confirm the actual available Modal credits and usage/spend limits in your workspace.
+Do not add payment methods, increase budgets, or start a subscription without authorization.
+No free-credit amount is guaranteed by this code.
 
-## User flow
-Open the deployed HTTPS endpoint and authenticate with username haru and the generated password.
-Language defaults to Japanese. Select a character card and upload or record a reference voice
-(3 seconds or more, a voice you have the right to use), then start the conversation.
-The official client receives/plays streamed audio; there is no local model inference.
-The endpoint password is supplied through the private HARU_PASSWORD Actions secret.
-No passwords, Modal tokens, voice recordings, or conversation data are placed in source or artifacts.
+The app uses 1 L4 maximum, 0 minimum containers, a 10-second idle scale-down window,
+and a maximum of 180 seconds per Haru conversation. Opening a browser tab/request may
+wake the GPU and consume credits. Provider-side limits are the real spending boundary;
+the resource settings alone are not a hard monetary cap.
 
-## Source and reuse
-- Official Haru: https://github.com/higurashi-ai/Haru
-- Reviewed upstream commit: 7fe6b7665f8bf035998f401f8cb779fbe53f2751.
-- Official model: higurashi-ai/Haru-4B, revision 8d6e83bcd3701a76fc27a764965665da1df7da78.
+The workflow is manual-only. Use a standard public GitHub-hosted runner for free Actions
+compute, or verify the included Actions allowance before running it privately.
+Set the private HARU_PASSWORD Actions secret to a newly generated password of at least
+32 characters. Never commit it. The workflow requests a 1-hour Modal API token using
+the official browser authorization flow. It does not save that Modal token in source,
+Actions artifacts, or GitHub Secrets.
+
+## Conversation
+After deployment, open the HTTPS endpoint and authenticate as haru with the private
+password. Japanese is selected by default. Select a character and upload/record a
+reference voice of at least 3 seconds, using a voice you have the right to use.
+Start the conversation. The official client exchanges streaming audio with Haru.
+No voice recordings or conversation data are committed to this repository.
+
+## Pinned upstream
+- Code: https://github.com/higurashi-ai/Haru
+- Commit: 7fe6b7665f8bf035998f401f8cb779fbe53f2751
+- Model: higurashi-ai/Haru-4B
+- Revision: 8d6e83bcd3701a76fc27a764965665da1df7da78
 - Reviewed: haru/haru/server.py, backends.py, models/loaders.py, haru/pyproject.toml.
-- UniAgent reviewed commit: 50325f63b14497e9cb7d27185c2b63537ffdf0fe; no existing Modal
-  integration in reviewed workflow scope. This is a standalone demo, no UniAgent changes.
-- Reuse decision: use the bundled official client/server, adding authentication and cloud
-  resource configuration only. No new speech model or product integration is implemented.
-- Code and model are Apache 2.0; upstream third-party notices remain in the installed package.
+- Code and model are Apache 2.0; the installed upstream retains its third-party notices.
 
-## Verification contract
-- Static: Python syntax and authentication acceptance/denial tests.
-- Remote: exact deployed source, model loading, default Japanese setting, unauthenticated 401,
-  successful authenticated client load, generated Japanese text/audio, connection close,
-  scale-down and current credits.
-- Quality oracle: preserve prior Haru failures (unknown reservation fee and meal follow-up);
-  this deployment is not proof of corrected grounding or assistant-grade factual reliability.
-- A deployment/build success alone does not count as a verified conversation.
-- No automated recurring jobs, public recording collection, or extra paid resources.
+## Verification
+The auth tests cover valid credentials, missing/malformed/wrong credentials, and
+fail-closed behavior for an empty/short configured password. Syntax checks run in CI.
+Deployment verification must additionally confirm model loading, Japanese defaults,
+401 for unauthenticated HTTP/WebSocket requests, authenticated client load, actual
+Japanese text/audio generation, disconnect/idle scale-down, and credits remaining.
+A passing build or deployed URL alone is not proof of a successful conversation.
+
+Haru is a base conversation model with factuality/instruction-following limitations.
+This deployment does not establish assistant-grade accuracy or correct prior failures.
 
 ## Status
-Prepared; remote build/deployment, billing enforcement in execution, and actual Japanese
-conversation remain unverified until the authorized cloud workflow is run.
+Prepared. Remote build, deployment, Japanese conversation and cost verification are
+not yet completed.
