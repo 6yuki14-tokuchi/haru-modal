@@ -34,7 +34,7 @@ reference=json.loads(req("/api/reference_audio",ref,"audio/wav")[1])
 prompt=("あなたはテスト店の受付係のハルです。日本語で短く丁寧に話します。営業時間は午前10時から午後6時です。予約手数料は未確認です。金額を推測せず、分からないと伝えて担当者に確認します。" if CASE=="grounding" else "あなたの名前はハル。日本語でフランクに、親しい友人として短く自然に話します。相手の話を聞いて、質問や相づちを交えて会話してください。")
 variant=os.environ.get("HARU_CARD_VARIANT", "")
 if variant:
-    card=dict(config["card_presets"]["ja"]["chat"])
+    card=dict(next(item["card"] for item in config["card_presets"]["ja"] if item["id"]=="chat"))
     if variant=="listen":
         card.update(
             persona="ハルは日本語で話す、落ち着いた聞き上手な友人。相手の発言を最後まで聞き、その内容に沿って一度に一、二文で答える。話題を勝手に変えず、相手が答えてから次の質問をする。",
