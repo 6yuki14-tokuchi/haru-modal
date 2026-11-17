@@ -26,31 +26,51 @@ jobs:
           test -n "$HARU_PASSWORD"
       - name: Install deployment client on cloud runner only
         run: python -m pip install modal==1.6.4
-      - name: Authenticate temporary cloud runner
+      - name: Start temporary Modal authorization
         env:
           NO_COLOR: '1'
           COLUMNS: '300'
           BROWSER: 'false'
+        shell: bash
         run: |
-          python -u - <<'PYAUTH'
-          import os, re, subprocess, sys
-          p = subprocess.Popen(["modal", "token", "new", "--expires-in", "1h"],
-              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-          verified = False
-          for line in p.stdout:
-              clean = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
-              print(line, end="", flush=True)
-              if "https://modal.com/" in clean or "Enter this code:" in clean:
-                  print("::notice title=Modal temporary authorization::" + clean, flush=True)
-              if "Token is connected to the" in clean:
-                  if "yuki14 workspace" not in clean:
-                      p.terminate()
-                      raise SystemExit("Unexpected Modal workspace; refusing deployment")
-                  verified = True
-          code = p.wait()
-          if code or not verified:
-              raise SystemExit(code or "Modal workspace was not verified")
+          nohup modal token new --expires-in 1h > "$RUNNER_TEMP/modal-auth.log" 2>&1 < /dev/null &
+          echo "MODAL_AUTH_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if grep -q 'https://modal.com/' "$RUNNER_TEMP/modal-auth.log"; then
+              python - <<'PYAUTH'
+          import os, re
+          text = open(os.environ["RUNNER_TEMP"] + "/modal-auth.log").read()
+          text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+          for line in text.splitlines():
+              if "https://modal.com/" in line or "Enter this code:" in line:
+                  print("::notice title=Modal temporary authorization::" + line.strip())
           PYAUTH
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "No authorization URL received" >&2
+          exit 1
+      - name: Wait for authorized yuki14 connection
+        shell: bash
+        run: |
+          for i in $(seq 1 240); do
+            if test -f "$HOME/.modal.toml"; then
+              if grep -q 'yuki14 workspace' "$RUNNER_TEMP/modal-auth.log"; then
+                echo "Authorized temporary yuki14 connection is ready."
+                exit 0
+              fi
+              echo "Unexpected Modal workspace; refusing deployment" >&2
+              exit 1
+            fi
+            if ! kill -0 "$MODAL_AUTH_PID" 2>/dev/null; then
+              echo "Modal authorization process exited before credential setup" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "Modal authorization timed out" >&2
+          exit 1
       - name: Deploy Japanese Haru
         run: modal deploy modal_app.py
       - name: Remove runner credentials
