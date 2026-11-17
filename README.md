@@ -12,7 +12,8 @@ Confirm the actual available Modal credits and usage/spend limits in your worksp
 Do not add payment methods, increase budgets, or start a subscription without authorization.
 No free-credit amount is guaranteed by this code.
 
-The app uses 1 L4 maximum, 0 minimum containers, a 10-second idle scale-down window,
+The app uses 1 GPU maximum (L4, A10, then L40S fallbacks), 0 minimum containers,
+a 10-second idle scale-down window,
 and a maximum of 180 seconds per Haru conversation. Opening a browser tab/request may
 wake the GPU and consume credits. Provider-side limits are the real spending boundary;
 the resource settings alone are not a hard monetary cap.
@@ -30,6 +31,8 @@ password. Japanese is selected by default. Select a character and upload/record 
 reference voice of at least 3 seconds, using a voice you have the right to use.
 Start the conversation. The official client exchanges streaming audio with Haru.
 No voice recordings or conversation data are committed to this repository.
+Close the conversation tab when finished: the upstream setup screen polls readiness
+and can keep the GPU active even before a conversation begins.
 
 ## Pinned upstream
 - Code: https://github.com/higurashi-ai/Haru
@@ -50,6 +53,25 @@ A passing build or deployed URL alone is not proof of a successful conversation.
 Haru is a base conversation model with factuality/instruction-following limitations.
 This deployment does not establish assistant-grade accuracy or correct prior failures.
 
-## Status
-Prepared. Remote build, deployment, Japanese conversation and cost verification are
-not yet completed.
+## Verified evaluation (2026-11-17)
+Cloud build/deployment, 3 auth unit tests, model readiness, authenticated config,
+unauthenticated HTTP 401 and 2 real Japanese WebSocket audio streams completed.
+Evidence: https://github.com/6yuki14-tokuchi/haru-modal/actions/runs/44038389354
+Runtime/test revision: 05a0860eea9ca02650504dea5ac6d3c9c354cc5a.
+
+The model returned 24.96 seconds of audio for casual chat and 34.96 seconds for
+a two-turn shop scenario. This proves transport and generation, not answer quality:
+chat included unrelated/repeated introductions, and the shop reply incorrectly
+said closing time was 20:00 when the prompt specified 18:00. It did correctly say
+the reservation fee was unconfirmed. Do not use these results as a factuality pass.
+
+Inputs were existing synthesized Japanese fixtures transported privately as 8 kbps
+Opus; no physical microphone or subjective listening score was tested. Initial
+readiness took 97.35 seconds including network/startup; this is not response latency.
+The first returned audio chunk is not a measured response to a finished utterance.
+
+The workflow optionally runs cloud_smoke.py when temporary private
+HARU_TEST_REFERENCE, HARU_TEST_CHAT and HARU_TEST_GROUNDING secrets contain base64
+Opus. Delete those fixture secrets after testing. Missing fixtures are explicitly
+reported as an unrun speech test; build/auth success does not imply speech success.
+Only the private application password is required for normal deployment.
