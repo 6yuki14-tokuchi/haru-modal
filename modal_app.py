@@ -34,7 +34,7 @@ credentials = modal.Secret.from_dict({"HARU_PASSWORD": password}) if modal.is_lo
 
 @app.function(
     image=image,
-    gpu="L4",
+    gpu=["L4", "A10", "L40S"],
     cpu=2,
     memory=16384,
     min_containers=0,
