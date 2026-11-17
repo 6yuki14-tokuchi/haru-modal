@@ -32,6 +32,24 @@ print(json.dumps({"stage":"ready","elapsed_s":time.monotonic()-t0,"language":"ja
 ref=subprocess.run([FFMPEG,"-v","error","-i","pipe:0","-ac","1","-ar","24000","-f","wav","pipe:1"],input=base64.b64decode(os.environ["HARU_TEST_REFERENCE"]),capture_output=True,check=True).stdout
 reference=json.loads(req("/api/reference_audio",ref,"audio/wav")[1])
 prompt=("あなたはテスト店の受付係のハルです。日本語で短く丁寧に話します。営業時間は午前10時から午後6時です。予約手数料は未確認です。金額を推測せず、分からないと伝えて担当者に確認します。" if CASE=="grounding" else "あなたの名前はハル。日本語でフランクに、親しい友人として短く自然に話します。相手の話を聞いて、質問や相づちを交えて会話してください。")
+variant=os.environ.get("HARU_CARD_VARIANT", "")
+if variant:
+    card=dict(config["card_presets"]["ja"]["chat"])
+    if variant=="listen":
+        card.update(
+            persona="ハルは日本語で話す、落ち着いた聞き上手な友人。相手の発言を最後まで聞き、その内容に沿って一度に一、二文で答える。話題を勝手に変えず、相手が答えてから次の質問をする。",
+            backchannel="low",
+            relationship="ハルと相手は以前からの親しい友人。",
+            situation="久しぶりに電話で近況を話している。自己紹介は終わっている。相手が話し始めるのを待ち、話した内容に自然に返事をする。")
+    template=config["card_templates"]["ja"]
+    lines=[template["lead"]]
+    for field in ("persona","name","gender","backchannel","other_name","relationship","situation"):
+        value=str(card.get(field) or "").strip()
+        if field in ("gender","backchannel"):
+            value=template[field].get(value,"")
+        if value:
+            lines.extend([template["headers"][field],value])
+    prompt="\n".join(lines)
 session=json.loads(req("/api/session",json.dumps({"system_prompt":prompt,"reference_audio_id":reference["id"],"guidance_scale":1.5}).encode(),"application/json")[1])
 opus=subprocess.run([FFMPEG,"-v","error","-i","pipe:0","-af","apad=pad_dur=5","-ac","1","-ar","24000","-c:a","libopus","-b:a","32k","-application","voip","-page_duration","133333","-f","ogg","pipe:1"],input=input_audio,capture_output=True,check=True).stdout
 pages=[];p=0
@@ -104,7 +122,7 @@ ogg=b"".join(audio)
 pcm=subprocess.run([FFMPEG,"-v","error","-i","pipe:0","-f","f32le","-ac","1","-ar","24000","pipe:1"],input=ogg,capture_output=True,check=True).stdout
 import numpy as np
 a=np.frombuffer(pcm,dtype="<f4")
-result={"case":CASE,"input_transport":"8 kbps Opus from existing synthesized Japanese fixture","first_audio_after_handshake_s":first_audio,"default_language":config["default_language"],"unauthenticated_status":401,"model_ready":True,"websocket_handshake":handshake,"sent_ogg_pages":idx,"received_audio_chunks":chunks,"reply_text":"".join(texts),"output_audio_seconds":len(a)/24000,"audio_peak":float(np.max(np.abs(a))) if len(a) else 0,"audio_rms":float(np.sqrt(np.mean(a*a))) if len(a) else 0,"input_sha256":hashlib.sha256(input_audio).hexdigest(),"output_ogg_sha256":hashlib.sha256(ogg).hexdigest(),"elapsed_including_network_and_input_playback_s":time.monotonic()-t0,"scope":"Actual authenticated WebSocket audio stream from fixed synthesized Japanese recording; no physical microphone or subjective listening score."}
+result={"case":CASE,"input_transport":os.environ.get("HARU_INPUT_TRANSPORT","8 kbps Opus from existing synthesized Japanese fixture"),"card_variant":variant,"first_audio_after_handshake_s":first_audio,"default_language":config["default_language"],"unauthenticated_status":401,"model_ready":True,"websocket_handshake":handshake,"sent_ogg_pages":idx,"received_audio_chunks":chunks,"reply_text":"".join(texts),"output_audio_seconds":len(a)/24000,"audio_peak":float(np.max(np.abs(a))) if len(a) else 0,"audio_rms":float(np.sqrt(np.mean(a*a))) if len(a) else 0,"input_sha256":hashlib.sha256(input_audio).hexdigest(),"output_ogg_sha256":hashlib.sha256(ogg).hexdigest(),"elapsed_including_network_and_input_playback_s":time.monotonic()-t0,"scope":"Actual authenticated WebSocket audio stream from fixed synthesized Japanese recording; no physical microphone or subjective listening score."}
 assert result["reply_text"],result
 assert result["audio_peak"]>.001,result
 assert result["output_audio_seconds"]>5,result
