@@ -1,11 +1,6 @@
 name: Deploy Haru to Modal (free credits only)
 on:
   workflow_dispatch:
-    inputs:
-      authorized_receipt:
-        description: Encrypted receipt for a previously authorized, still-valid one-hour connection
-        required: false
-        type: string
 permissions:
   contents: read
 concurrency:
@@ -13,7 +8,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
-    if: ${{ github.event.repository.private == false && inputs.authorized_receipt == '' }}
+    if: ${{ github.event.repository.private == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -49,14 +44,13 @@ jobs:
           asyncio.run(main())
           PYAUTH
   deploy:
-    if: ${{ always() && github.event.repository.private == false && (needs.prepare.result == 'success' || inputs.authorized_receipt != '') }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       MODAL_ENVIRONMENT: main
       HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
-      MODAL_AUTH_RECEIPT: ${{ inputs.authorized_receipt || needs.prepare.outputs.receipt }}
+      MODAL_AUTH_RECEIPT: ${{ needs.prepare.outputs.receipt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
