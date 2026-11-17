@@ -7,7 +7,7 @@ PASSWORD=os.environ["HARU_PASSWORD"]
 CASE=os.environ.get("HARU_CASE","short_chat")
 FFMPEG=shutil.which("ffmpeg")
 assert FFMPEG, "Cloud runner needs ffmpeg"
-input_audio=base64.b64decode(os.environ["HARU_TEST_GROUNDING" if CASE=="grounding" else "HARU_TEST_CHAT"])
+input_audio=(Path(os.environ["HARU_TEST_INPUT_PATH"]).read_bytes() if os.environ.get("HARU_TEST_INPUT_PATH") else base64.b64decode(os.environ["HARU_TEST_GROUNDING" if CASE=="grounding" else "HARU_TEST_CHAT"]))
 AUTH="Basic "+base64.b64encode(("haru:"+PASSWORD).encode()).decode()
 def req(path,data=None,ctype=None,auth=True,timeout=900):
     h={"Authorization":AUTH} if auth else {}
@@ -29,7 +29,7 @@ for i in range(120):
     time.sleep(2)
 else:raise RuntimeError("Model did not become ready")
 print(json.dumps({"stage":"ready","elapsed_s":time.monotonic()-t0,"language":"ja","unauthenticated_status":401}),flush=True)
-ref=subprocess.run([FFMPEG,"-v","error","-i","pipe:0","-ac","1","-ar","24000","-f","wav","pipe:1"],input=base64.b64decode(os.environ["HARU_TEST_REFERENCE"]),capture_output=True,check=True).stdout
+ref=subprocess.run([FFMPEG,"-v","error","-i","pipe:0","-ac","1","-ar","24000","-f","wav","pipe:1"],input=(Path(os.environ["HARU_TEST_REFERENCE_PATH"]).read_bytes() if os.environ.get("HARU_TEST_REFERENCE_PATH") else base64.b64decode(os.environ["HARU_TEST_REFERENCE"])),capture_output=True,check=True).stdout
 reference=json.loads(req("/api/reference_audio",ref,"audio/wav")[1])
 prompt=("あなたはテスト店の受付係のハルです。日本語で短く丁寧に話します。営業時間は午前10時から午後6時です。予約手数料は未確認です。金額を推測せず、分からないと伝えて担当者に確認します。" if CASE=="grounding" else "あなたの名前はハル。日本語でフランクに、親しい友人として短く自然に話します。相手の話を聞いて、質問や相づちを交えて会話してください。")
 variant=os.environ.get("HARU_CARD_VARIANT", "")
