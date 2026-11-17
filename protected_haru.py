@@ -18,6 +18,13 @@ def protect_app(application, password):
                 status=401, text="Authentication required",
                 headers={"WWW-Authenticate": 'Basic realm="Haru Japanese conversation"'},
             )
+        if request.headers.get("Upgrade", "").lower() == "websocket":
+            # Modal forwards Chrome's compression offer, while its upstream
+            # aiohttp websocket client uses compress=0. Do not negotiate deflate:
+            # Opus audio is already compressed, and the proxy needs plain frames.
+            headers = request.headers.copy()
+            headers.popall("Sec-WebSocket-Extensions", None)
+            request = request.clone(headers=headers)
         return await handler(request)
     application.middlewares.insert(0, authenticate)
     return application
