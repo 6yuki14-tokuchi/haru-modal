@@ -105,6 +105,10 @@ jobs:
           HARU_TEST_CHAT: ${{ secrets.HARU_TEST_CHAT }}
           HARU_TEST_GROUNDING: ${{ secrets.HARU_TEST_GROUNDING }}
         run: |
+          if [ -z "$HARU_TEST_REFERENCE" ] || [ -z "$HARU_TEST_CHAT" ] || [ -z "$HARU_TEST_GROUNDING" ]; then
+            echo "Temporary speech fixtures absent; audio smoke test was not run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
           python -m pip install numpy
           HARU_CASE=short_chat python -u cloud_smoke.py
