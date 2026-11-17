@@ -1,6 +1,8 @@
 """Bounded comparison. No user recordings or model weights are committed."""
 import base64,io,json,os,subprocess,sys,zipfile
 import numpy as np
+import tempfile
+from pathlib import Path
 
 encoded="".join(os.environ.get("HARU_EVAL_"+str(i),"") for i in range(32))
 assert encoded, "Temporary private fixtures are required"
@@ -22,13 +24,16 @@ print(json.dumps({"evaluation_plan":{
     "sampling":"Uncontrolled server randomness; this is a bounded diagnostic, not a statistical benchmark.",
     "conditions":"Same pinned deployed Haru runtime, same clean synthetic reference, same input and 32 kbps Opus transport for both cards."
 }},ensure_ascii=False),flush=True)
+temp=tempfile.TemporaryDirectory(prefix="haru-eval-",dir=os.environ.get("RUNNER_TEMP"))
+fixture_paths={key:Path(temp.name)/(key+".flac") for key in fixtures}
+for key,path in fixture_paths.items():path.write_bytes(fixtures[key])
 results=[]
 for case,variant,repeat in [("chat","baseline",1),("chat","listen",1),("chat","baseline",2),("chat","listen",2),("meal","baseline",1),("meal","listen",1)]:
-    env=os.environ.copy()
+    env={key:value for key,value in os.environ.items() if not key.startswith("HARU_EVAL_")}
     env.update(HARU_CASE=case,HARU_CARD_VARIANT=variant,
         HARU_INPUT_TRANSPORT="FLAC fixture decoded then 32 kbps Opus; no 8 kbps intermediate",
-        HARU_TEST_REFERENCE=base64.b64encode(fixtures["reference"]).decode(),
-        HARU_TEST_CHAT=base64.b64encode(fixtures[case]).decode())
+        HARU_TEST_REFERENCE_PATH=str(fixture_paths["reference"]),
+        HARU_TEST_INPUT_PATH=str(fixture_paths[case]))
     run=subprocess.run([sys.executable,"-u","cloud_smoke.py"],env=env,capture_output=True,text=True,timeout=300)
     if run.returncode:
         print(run.stdout,flush=True)
