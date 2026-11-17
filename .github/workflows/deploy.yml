@@ -46,7 +46,7 @@ jobs:
   deploy:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       MODAL_ENVIRONMENT: main
       HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
@@ -59,7 +59,7 @@ jobs:
       - name: Check Python and authentication behavior
         run: |
           python -m unittest -v test_auth
-          python -m py_compile modal_app.py protected_haru.py
+          python -m py_compile modal_app.py protected_haru.py cloud_smoke.py
           test -n "$HARU_PASSWORD"
       - name: Install deployment client on cloud runner only
         run: python -m pip install modal==1.6.4
@@ -97,3 +97,15 @@ jobs:
           PYAUTH
       - name: Deploy Japanese Haru
         run: modal deploy modal_app.py
+      - name: Exercise Japanese speech on cloud runner only
+        timeout-minutes: 22
+        env:
+          HARU_URL: https://yuki14--haru-ja-free-web.us-east.modal.run
+          HARU_TEST_REFERENCE: ${{ secrets.HARU_TEST_REFERENCE }}
+          HARU_TEST_CHAT: ${{ secrets.HARU_TEST_CHAT }}
+          HARU_TEST_GROUNDING: ${{ secrets.HARU_TEST_GROUNDING }}
+        run: |
+          command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+          python -m pip install numpy
+          HARU_CASE=short_chat python -u cloud_smoke.py
+          HARU_CASE=grounding python -u cloud_smoke.py
