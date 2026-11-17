@@ -5,6 +5,9 @@ The model and runtime dependencies live in Modal. Deployment tooling runs on a c
 runner, so the client computer does not download model weights or install this runtime.
 
 ## Before deployment
+Modal requires a valid payment method on file for every GPU type, even when using free credits.
+See https://modal.com/docs/guide/gpu. Payment-method registration must be completed by
+the account owner. Verify a net spend limit of $0 before starting a free-only deployment.
 Confirm the actual available Modal credits and usage/spend limits in your workspace.
 Do not add payment methods, increase budgets, or start a subscription without authorization.
 No free-credit amount is guaranteed by this code.
