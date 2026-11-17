@@ -8,6 +8,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    if: ${{ github.event.repository.private == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -26,7 +27,30 @@ jobs:
       - name: Install deployment client on cloud runner only
         run: python -m pip install modal==1.6.4
       - name: Authenticate temporary cloud runner
-        run: modal token new --expires-in 1h
+        env:
+          NO_COLOR: '1'
+          COLUMNS: '300'
+          BROWSER: 'false'
+        run: |
+          python -u - <<'PYAUTH'
+          import os, re, subprocess, sys
+          p = subprocess.Popen(["modal", "token", "new", "--expires-in", "1h"],
+              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+          verified = False
+          for line in p.stdout:
+              clean = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+              print(line, end="", flush=True)
+              if "https://modal.com/" in clean or "Enter this code:" in clean:
+                  print("::notice title=Modal temporary authorization::" + clean, flush=True)
+              if "Token is connected to the" in clean:
+                  if "yuki14 workspace" not in clean:
+                      p.terminate()
+                      raise SystemExit("Unexpected Modal workspace; refusing deployment")
+                  verified = True
+          code = p.wait()
+          if code or not verified:
+              raise SystemExit(code or "Modal workspace was not verified")
+          PYAUTH
       - name: Deploy Japanese Haru
         run: modal deploy modal_app.py
       - name: Remove runner credentials
