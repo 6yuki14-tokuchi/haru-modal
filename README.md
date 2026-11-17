@@ -61,7 +61,8 @@ Runtime/test revision: 05a0860eea9ca02650504dea5ac6d3c9c354cc5a.
 
 The model returned 24.96 seconds of audio for casual chat and 34.96 seconds for
 a two-turn shop scenario. This proves transport and generation, not answer quality:
-chat included unrelated/repeated introductions, and the shop reply incorrectly
+the original chat fixture was later found to be silent, so that run is not evidence
+of Japanese input understanding. The shop reply incorrectly
 said closing time was 20:00 when the prompt specified 18:00. It did correctly say
 the reservation fee was unconfirmed. Do not use these results as a factuality pass.
 
@@ -91,3 +92,19 @@ Runtime revision: e070f261f013ba3a5f9231fc9cbe2e8fa83303da.
 The actual Chrome interface subsequently showed an active WebSocket, Japanese
 output, and nonzero audio playback; the server logged a 22.7-second connection
 with periodic browser playback reports. Subjective listening quality is not scored.
+
+
+## Correction to the original chat evidence
+The archived chat.wav input used in the first evaluation had peak=0 and RMS=0.
+Its returned text/audio proves generation from silence, not a response to the
+intended Japanese utterance. That chat-quality conclusion is withdrawn.
+The original chat.aiff is non-silent (6.0679 s, peak 0.33536, RMS 0.05138).
+The meal and grounding fixtures were separately checked and are non-silent.
+
+The current bounded evaluation rebuilds the chat fixture from that original AIFF,
+uses lossless FLAC fixture transport before 32 kbps Opus streaming, checks speech
+activity before inference, and compares the official default card with a listening
+card on the same runtime. Two chat repetitions per card and one held-out dinner
+case per card are pinned before reviewing results. Transport success is separate
+from conversational relevance. No weights, recordings or private fixture bytes are
+committed to this repository.
