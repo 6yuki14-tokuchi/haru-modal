@@ -22,6 +22,8 @@ image = (
         "HF_HUB_DISABLE_TELEMETRY": "1",
         "HARU_MODEL_REVISION": MODEL_REVISION,
         "PYTHONDONTWRITEBYTECODE": "1",
+        "TRITON_CACHE_DIR": "/models/triton",
+        "TORCHINDUCTOR_CACHE_DIR": "/models/torchinductor",
     })
     .add_local_file("protected_haru.py", "/opt/protected_haru.py")
 )
@@ -46,4 +48,31 @@ credentials = modal.Secret.from_dict({"HARU_PASSWORD": password}) if modal.is_lo
 @modal.concurrent(max_inputs=20)
 @modal.web_server(8000, startup_timeout=900)
 def web():
-    subprocess.Popen([sys.executable, "/opt/protected_haru.py"])
+    import base64
+    import json
+    import time
+    import urllib.request
+    import urllib.error
+    process = subprocess.Popen([sys.executable, "/opt/protected_haru.py"])
+    header = "Basic " + base64.b64encode(("haru:" + os.environ["HARU_PASSWORD"]).encode()).decode()
+    deadline = time.monotonic() + 840
+    try:
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("Haru server exited during initialization")
+            try:
+                request = urllib.request.Request("http://127.0.0.1:8000/api/ready",
+                    headers={"Authorization": header})
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    ready = json.load(response).get("ready", False)
+                if ready:
+                    weights.commit()
+                    print("Haru model ready; weights and GPU kernel cache committed.", flush=True)
+                    return
+            except (urllib.error.URLError, TimeoutError):
+                pass
+            time.sleep(1)
+        raise TimeoutError("Haru model initialization did not complete")
+    except BaseException:
+        process.terminate()
+        raise
