@@ -1,0 +1,47 @@
+name: Evaluate Haru conversation relevance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: haru-conversation-evaluation
+  cancel-in-progress: false
+jobs:
+  evaluate:
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      HARU_URL: https://yuki14--haru-ja-free-web.us-east.modal.run
+      HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
+      HARU_EVAL_0: ${{ secrets.HARU_EVAL_0 }}
+      HARU_EVAL_1: ${{ secrets.HARU_EVAL_1 }}
+      HARU_EVAL_2: ${{ secrets.HARU_EVAL_2 }}
+      HARU_EVAL_3: ${{ secrets.HARU_EVAL_3 }}
+      HARU_EVAL_4: ${{ secrets.HARU_EVAL_4 }}
+      HARU_EVAL_5: ${{ secrets.HARU_EVAL_5 }}
+      HARU_EVAL_6: ${{ secrets.HARU_EVAL_6 }}
+      HARU_EVAL_7: ${{ secrets.HARU_EVAL_7 }}
+      HARU_EVAL_8: ${{ secrets.HARU_EVAL_8 }}
+      HARU_EVAL_9: ${{ secrets.HARU_EVAL_9 }}
+      HARU_EVAL_10: ${{ secrets.HARU_EVAL_10 }}
+      HARU_EVAL_11: ${{ secrets.HARU_EVAL_11 }}
+      HARU_EVAL_12: ${{ secrets.HARU_EVAL_12 }}
+      HARU_EVAL_13: ${{ secrets.HARU_EVAL_13 }}
+      HARU_EVAL_14: ${{ secrets.HARU_EVAL_14 }}
+      HARU_EVAL_15: ${{ secrets.HARU_EVAL_15 }}
+      HARU_EVAL_16: ${{ secrets.HARU_EVAL_16 }}
+      HARU_EVAL_17: ${{ secrets.HARU_EVAL_17 }}
+      HARU_EVAL_18: ${{ secrets.HARU_EVAL_18 }}
+      HARU_EVAL_19: ${{ secrets.HARU_EVAL_19 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+          python -m pip install numpy
+          python -m py_compile cloud_smoke.py conversation_eval.py
+      - name: Compare fixed Japanese inputs on the deployed model
+        run: python -u conversation_eval.py
