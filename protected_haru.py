@@ -9,6 +9,19 @@ def accepts_authorization(value, password):
     expected = "Basic " + base64.b64encode(("haru:" + password).encode()).decode()
     return hmac.compare_digest(value.encode(), expected.encode())
 
+def protect_app(application, password):
+    from aiohttp import web
+    @web.middleware
+    async def authenticate(request, handler):
+        if not accepts_authorization(request.headers.get("Authorization"), password):
+            return web.Response(
+                status=401, text="Authentication required",
+                headers={"WWW-Authenticate": 'Basic realm="Haru Japanese conversation"'},
+            )
+        return await handler(request)
+    application.middlewares.insert(0, authenticate)
+    return application
+
 def main():
     from aiohttp import web
     from huggingface_hub import snapshot_download
@@ -31,16 +44,7 @@ def main():
             time_limit_seconds=180, webrtc="off",
         ),
     )
-    application = server.build_app()
-    @web.middleware
-    async def authenticate(request, handler):
-        if not accepts_authorization(request.headers.get("Authorization"), password):
-            return web.Response(
-                status=401, text="Authentication required",
-                headers={"WWW-Authenticate": 'Basic realm="Haru Japanese conversation"'},
-            )
-        return await handler(request)
-    application.middlewares.insert(0, authenticate)
+    application = protect_app(server.build_app(), password)
     web.run_app(application, host="0.0.0.0", port=8000, print=None, access_log=None)
 
 if __name__ == "__main__":
