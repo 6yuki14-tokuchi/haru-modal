@@ -1,0 +1,35 @@
+name: Deploy Haru to Modal (free credits only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: haru-modal-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MODAL_ENVIRONMENT: main
+      HARU_PASSWORD: ${{ secrets.HARU_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Python and authentication behavior
+        run: |
+          python -m unittest -v test_auth
+          python -m py_compile modal_app.py protected_haru.py
+          test -n "$HARU_PASSWORD"
+      - name: Install deployment client on cloud runner only
+        run: python -m pip install modal==1.6.4
+      - name: Authenticate temporary cloud runner
+        run: modal token new --expires-in 1h
+      - name: Deploy Japanese Haru
+        run: modal deploy modal_app.py
+      - name: Remove runner credentials
+        if: always()
+        shell: bash
+        run: rm -f "$HOME/.modal.toml"
