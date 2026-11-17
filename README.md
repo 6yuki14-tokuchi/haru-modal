@@ -108,3 +108,26 @@ card on the same runtime. Two chat repetitions per card and one held-out dinner
 case per card are pinned before reviewing results. Transport success is separate
 from conversational relevance. No weights, recordings or private fixture bytes are
 committed to this repository.
+
+
+## Conversational quality result (2026-11-17)
+Corrected evaluation source: b4c4d9182d77f4a794e69ac793846876065b0fee.
+Deployed runtime: e070f261f013ba3a5f9231fc9cbe2e8fa83303da.
+Evidence: https://github.com/6yuki14-tokuchi/haru-modal/actions/runs/44047927931
+
+All 6 runs returned Japanese audio (24.96 s chat, 34.96 s dinner), but that is
+transport evidence only. The listening card was **not adopted** as a conversation
+quality fix. Both cards sometimes answered the greeting/question; the listening
+card still reintroduced itself and confused speaker names. On the held-out dinner
+follow-up, neither card incorporated the available eggs/rice and no-knife condition.
+Default drifted into curry/pasta chatter; listening suggested chicken saute.
+
+This bounded result does not establish an intrinsic limit of every Haru setup:
+model sampling was uncontrolled, the reference was a fixed 5-second synthetic
+voice, and the runtime used its current codec backend. It does show that a simple
+card change did not solve the reported monologue problem in this deployment.
+No automatic model switch, new paid API, or fine-tuning was started. The user's
+existing conversation settings were not replaced with the unsuccessful candidate.
+
+Input activity checks passed before inference: reference peak .3433, chat .3356,
+dinner .3338. The original silent chat.wav result remains withdrawn.
