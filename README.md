@@ -75,3 +75,19 @@ HARU_TEST_REFERENCE, HARU_TEST_CHAT and HARU_TEST_GROUNDING secrets contain base
 Opus. Delete those fixture secrets after testing. Missing fixtures are explicitly
 reported as an unrun speech test; build/auth success does not imply speech success.
 Only the private application password is required for normal deployment.
+
+
+## Chrome connection correction (2026-11-17)
+The original recorded-audio check did not exercise Chrome's compression offer.
+The deployed browser session then disconnected immediately after HTTP 101 because
+Modal's upstream websocket client forwards the browser offer while keeping its own
+compression disabled. The auth adapter now removes only the websocket extension
+offer on Upgrade requests, keeping Basic authentication and all other routes.
+
+The cloud regression reproduces the prior failure (browser-offer case fails;
+plain client and authentication cases pass). All 6 tests pass after the fix:
+https://github.com/6yuki14-tokuchi/haru-modal/actions/runs/44045778363
+Runtime revision: e070f261f013ba3a5f9231fc9cbe2e8fa83303da.
+The actual Chrome interface subsequently showed an active WebSocket, Japanese
+output, and nonzero audio playback; the server logged a 22.7-second connection
+with periodic browser playback reports. Subjective listening quality is not scored.
