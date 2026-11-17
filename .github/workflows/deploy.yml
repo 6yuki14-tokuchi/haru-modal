@@ -1,6 +1,11 @@
 name: Deploy Haru to Modal (free credits only)
 on:
   workflow_dispatch:
+    inputs:
+      checks_only:
+        description: Run proxy regression checks without deployment or GPU calls
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -8,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
-    if: ${{ github.event.repository.private == false }}
+    if: ${{ github.event.repository.private == false && !inputs.checks_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -58,7 +63,8 @@ jobs:
           python-version: '3.12'
       - name: Check Python and authentication behavior
         run: |
-          python -m unittest -v test_auth
+          python -m pip install 'aiohttp>=3.10,<4'
+          python -m unittest -v test_auth test_proxy
           python -m py_compile modal_app.py protected_haru.py cloud_smoke.py
           test -n "$HARU_PASSWORD"
       - name: Install deployment client on cloud runner only
@@ -113,3 +119,14 @@ jobs:
           python -m pip install numpy
           HARU_CASE=short_chat python -u cloud_smoke.py
           HARU_CASE=grounding python -u cloud_smoke.py
+  proxy-check:
+    if: ${{ inputs.checks_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'aiohttp>=3.10,<4'
+      - run: python -m unittest -v test_auth test_proxy
